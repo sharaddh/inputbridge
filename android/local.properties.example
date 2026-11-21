@@ -1,0 +1,5 @@
+sdk.dir=C\:\\path\\to\\Android\\Sdk
+inputbridge.keystore=C\:\\path\\to\\inputbridge-release.jks
+inputbridge.storePassword=CHANGE_ME
+inputbridge.keyAlias=inputbridge
+inputbridge.keyPassword=CHANGE_ME

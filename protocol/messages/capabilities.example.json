@@ -1,0 +1,13 @@
+{
+  "protocolVersion": 1,
+  "type": "capabilities",
+  "capabilities": {
+    "keyboardText": true,
+    "keyEvents": false,
+    "pointerTap": true,
+    "pointerSwipe": true,
+    "pointerMove": false,
+    "mouseButtons": false,
+    "scroll": false
+  }
+}

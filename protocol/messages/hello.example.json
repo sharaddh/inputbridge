@@ -1,0 +1,6 @@
+{
+  "protocolVersion": 1,
+  "type": "hello",
+  "appVersion": "0.0.0-prototype",
+  "role": "windows"
+}

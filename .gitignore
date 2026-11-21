@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+
+windows/build/
+windows/dist/
+
+release/inputbridge-release.jks
+release/InputBridge-Windows/
+release/InputBridge-Android/*.apk

@@ -1,0 +1,14 @@
+{
+  "protocolVersion": 1,
+  "sessionId": "random-session-id",
+  "sequence": 1043,
+  "type": "input",
+  "device": "mouse",
+  "event": {
+    "action": "move",
+    "x": 0.52,
+    "y": 0.31,
+    "coordinateSpace": "normalized",
+    "timestamp": 1731930000010
+  }
+}
