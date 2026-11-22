@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">InputBridge</string>
-    <string name="state_idle">Status: scan the laptop QR</string>
+    <string name="app_subtitle">Share one keyboard and mouse with your phone.</string>
+    <string name="state_idle">STOPPED</string>
     <string name="caps_unknown">Capabilities: unknown</string>
+    <string name="section_connect">Connect</string>
+    <string name="section_setup">Setup</string>
+    <string name="section_session">Session</string>
+    <string name="section_activity">Activity</string>
     <string name="scan_qr">Scan laptop QR</string>
     <string name="qr_hint">Point the camera at the QR shown on the Windows app. No IP or pairing code needed.</string>
     <string name="accessibility">Accessibility</string>
@@ -10,7 +15,7 @@
     <string name="disconnect">Disconnect</string>
     <string name="revoke">Forget laptop</string>
     <string name="draw_over">Allow cursor overlay</string>
-    <string name="limits">MVP limits: pointer taps/swipes need the accessibility service. Typing works in text fields when InputBridge keyboard is selected. No encryption: use a trusted local network.</string>
+    <string name="limits">MVP limits: pointer taps and swipes need the accessibility service. Typing works in text fields when the InputBridge keyboard is selected. No encryption: use a trusted local network.</string>
     <string name="log_empty">Ready.</string>
     <string name="accessibility_description">InputBridge uses this service only to dispatch taps, swipes and limited navigation actions requested by the paired laptop while Phone mode is active.</string>
     <string name="ime_label">InputBridge keyboard</string>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="app_background">#F4F6FB</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="primary">#2F6DF6</color>
+    <color name="primary_dark">#1E4FD1</color>
+    <color name="text_primary">#111827</color>
+    <color name="text_secondary">#5B6472</color>
+    <color name="divider">#E3E8F0</color>
+    <color name="status_idle_bg">#EEF1F6</color>
+    <color name="status_idle_text">#5B6472</color>
+    <color name="status_connecting_bg">#FFF3D6</color>
+    <color name="status_connecting_text">#8A5A00</color>
+    <color name="status_connected_bg">#E7F7EE</color>
+    <color name="status_connected_text">#16794A</color>
+    <color name="status_paired_bg">#E6F0FF</color>
+    <color name="status_paired_text">#1D4ED8</color>
+    <color name="log_bg">#0F172A</color>
+    <color name="log_text">#DCE6F5</color>
+    <color name="danger_bg">#FDECEC</color>
+    <color name="danger_text">#B42318</color>
+</resources>

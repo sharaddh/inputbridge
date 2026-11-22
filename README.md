@@ -2,7 +2,7 @@
 
 InputBridge is a Windows 11 + Android companion app that routes a physical keyboard/mouse between the laptop and an Android phone.
 
-**Status:** QR-only functional MVP built on 2026-11-21.
+**Status:** QR-only functional MVP v0.2.0-smooth built on 2026-11-21.
 
 [Download the latest Windows ZIP and Android APKs from GitHub Releases](https://github.com/sharaddh/inputbridge/releases/latest).
 
@@ -25,6 +25,7 @@ SHA-256 checksums are recorded in `release/README_RELEASE.md` and `FINAL_BUILD_S
 - Windows input capture: low-level keyboard/mouse hooks with routing-aware suppression, bounded queue, worker thread, watchdog, and fail-safe return to Laptop mode.
 - Hotkeys: `Shift+CapsLock` toggles phone mode; in Phone mode `CapsLock` alone also returns to Laptop; `Ctrl+Alt+F12` is the emergency local-return shortcut.
 - Android input injection: taps/swipes/scrolls through the Accessibility service; text/navigation through the InputBridge IME. A visual cursor overlay follows the Windows mouse in Phone mode and stays hidden otherwise. Capabilities auto-refresh after the IME is selected.
+- Android v0.2.0 reduces jank with no global accessibility-event flood, coalesced UI/log updates, cached cursor geometry, coalesced wheel gestures, and reduced ACK traffic.
 - Transport security: HMAC-SHA256 signed JSON envelopes with sequence/timestamp replay checks; the pairing key comes from the scanned QR.
 
 ## Quick start

@@ -2,9 +2,13 @@ package com.inputbridge.android.service
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import com.inputbridge.android.ime.BridgeIme
 import com.inputbridge.android.net.BridgeClient
 import org.json.JSONObject
+import java.util.ArrayDeque
 import java.util.concurrent.CopyOnWriteArrayList
 
 object BridgeRuntime {
@@ -19,12 +23,22 @@ object BridgeRuntime {
     )
 
     private val listeners = CopyOnWriteArrayList<(Status) -> Unit>()
+    private val uiHandler = Handler(Looper.getMainLooper())
+    private var notifyScheduled = false
+    private val notifyRunnable = Runnable {
+        notifyScheduled = false
+        val snapshot = currentStatus
+        listeners.forEach { runCatching { it(snapshot) } }
+    }
     private var prefs: SharedPreferences? = null
-    var status: Status = Status()
-        private set
+    private var currentStatus = Status()
+    val status: Status
+        get() = currentStatus
     var client: BridgeClient? = null
         private set
-    private var logBuffer = mutableListOf<String>()
+    private val logBuffer = ArrayDeque<String>()
+    private var capsCache: JSONObject? = null
+    private var capsCacheAt = 0L
 
     fun init(context: Context) {
         if (prefs == null) prefs = context.applicationContext.getSharedPreferences("inputbridge", Context.MODE_PRIVATE)
@@ -70,16 +84,18 @@ object BridgeRuntime {
     }
 
     fun publish(next: Status) {
-        status = next
-        listeners.forEach { runCatching { it(next) } }
+        currentStatus = next
+        if (notifyScheduled) return
+        notifyScheduled = true
+        uiHandler.post(notifyRunnable)
     }
 
     fun log(line: String) {
         synchronized(logBuffer) {
-            logBuffer.add(line)
-            if (logBuffer.size > 200) logBuffer.removeAt(0)
+            logBuffer.addLast(line)
+            while (logBuffer.size > 120) logBuffer.removeFirst()
         }
-        publish(status.copy(message = line))
+        publish(currentStatus.copy(message = line))
     }
 
     fun logs(): List<String> = synchronized(logBuffer) { logBuffer.toList() }
@@ -132,6 +148,8 @@ object BridgeRuntime {
     }
 
     fun capabilities(): JSONObject {
+        val now = SystemClock.elapsedRealtime()
+        capsCache?.let { if (now - capsCacheAt < 1000L) return it }
         val caps = JSONObject()
         caps.put("accessibility", InputAccessibilityService.instance != null)
         caps.put("ime", BridgeIme.instance != null)
@@ -145,6 +163,8 @@ object BridgeRuntime {
         val screen = android.content.res.Resources.getSystem().displayMetrics
         caps.put("screenWidth", screen.widthPixels)
         caps.put("screenHeight", screen.heightPixels)
+        capsCache = caps
+        capsCacheAt = now
         return caps
     }
 }

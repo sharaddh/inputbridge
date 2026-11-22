@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.text.method.ScrollingMovementMethod
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
@@ -21,10 +22,16 @@ import com.inputbridge.android.service.InputAccessibilityService
 
 class MainActivity : AppCompatActivity() {
     private lateinit var stateView: TextView
+    private lateinit var messageView: TextView
     private lateinit var capsView: TextView
     private lateinit var logView: TextView
     private lateinit var scanLauncher: ActivityResultLauncher<Intent>
     private lateinit var cameraLauncher: ActivityResultLauncher<String>
+    private var lastStateText = ""
+    private var lastLink: BridgeRuntime.LinkState? = null
+    private var lastMessageText = ""
+    private var lastCapsText = ""
+    private var lastLogText = ""
     private val listener: (BridgeRuntime.Status) -> Unit = { status -> runOnUiThread { render(status) } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,8 +40,11 @@ class MainActivity : AppCompatActivity() {
         BridgeRuntime.init(this)
 
         stateView = findViewById(R.id.tvState)
+        messageView = findViewById(R.id.tvMessage)
         capsView = findViewById(R.id.tvCaps)
         logView = findViewById(R.id.tvLog)
+        logView.movementMethod = ScrollingMovementMethod()
+        logView.setHorizontallyScrolling(true)
 
         scanLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode != RESULT_OK) return@registerForActivityResult
@@ -116,13 +126,60 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun render(status: BridgeRuntime.Status) {
-        val remote = if (status.remoteName.isEmpty()) "" else " from ${status.remoteName}"
-        stateView.text = "Status: ${status.link}${if (status.paired) " (paired)" else ""}$remote"
+        val remote = if (status.remoteName.isEmpty()) "" else " · ${status.remoteName}"
+        val stateText = "${status.link}$remote${if (status.paired) " · paired" else ""}"
+        if (stateText != lastStateText) {
+            lastStateText = stateText
+            stateView.text = stateText
+        }
+        if (status.link != lastLink) {
+            lastLink = status.link
+            val background: Int
+            val textColor: Int
+            when (status.link) {
+                BridgeRuntime.LinkState.PAIRED -> {
+                    background = R.drawable.bg_status_paired
+                    textColor = R.color.status_paired_text
+                }
+                BridgeRuntime.LinkState.CONNECTED -> {
+                    background = R.drawable.bg_status_connected
+                    textColor = R.color.status_connected_text
+                }
+                BridgeRuntime.LinkState.CONNECTING -> {
+                    background = R.drawable.bg_status_connecting
+                    textColor = R.color.status_connecting_text
+                }
+                BridgeRuntime.LinkState.STOPPED -> {
+                    background = R.drawable.bg_status_idle
+                    textColor = R.color.status_idle_text
+                }
+            }
+            stateView.setBackgroundResource(background)
+            stateView.setTextColor(ContextCompat.getColor(this, textColor))
+        }
+        val messageText = status.message.ifEmpty { getString(R.string.log_empty) }
+        if (messageText != lastMessageText) {
+            lastMessageText = messageText
+            messageView.text = messageText
+        }
         val caps = BridgeRuntime.capabilities()
-        capsView.text = "Capabilities: accessibility=${caps.optBoolean("accessibility")}, " +
-            "IME=${caps.optBoolean("ime")}, pointer=${caps.optBoolean("pointerTap")}, " +
-            "screen=${caps.optInt("screenWidth")}x${caps.optInt("screenHeight")}"
-        logView.text = BridgeRuntime.logs().takeLast(60).joinToString("\n")
+        val on = "on"
+        val off = "off"
+        val access = if (caps.optBoolean("accessibility")) on else off
+        val keyboard = if (caps.optBoolean("ime")) on else off
+        val pointer = if (caps.optBoolean("pointerTap")) on else off
+        val capsText = "Accessibility $access · Keyboard $keyboard · Pointer $pointer · " +
+            "${caps.optInt("screenWidth")}×${caps.optInt("screenHeight")}"
+        if (capsText != lastCapsText) {
+            lastCapsText = capsText
+            capsView.text = capsText
+        }
+        val logText = BridgeRuntime.logs().takeLast(40).joinToString("\n")
+        if (logText != lastLogText) {
+            lastLogText = logText
+            logView.text = logText
+            logView.post { logView.scrollTo(0, logView.layout?.height ?: 0) }
+        }
     }
 
     private fun requestNotificationPermission() {

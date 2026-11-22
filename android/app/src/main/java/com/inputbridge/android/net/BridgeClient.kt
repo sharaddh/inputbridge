@@ -8,6 +8,7 @@ import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
+import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
 import java.util.UUID
@@ -35,6 +36,7 @@ class BridgeClient(
     private val tracker = Protocol.SequenceTracker()
     private var eventsThisSecond = 0
     private var rateWindowStart = System.currentTimeMillis()
+    private var lastRateStatus = 0L
     private var lastCapsSignature: String? = null
 
     val isRunning: Boolean get() = running.get()
@@ -80,9 +82,11 @@ class BridgeClient(
 
     private fun runConnection() {
         try {
-            Socket(host, port).use { s ->
-                s.soTimeout = 500
-                socket = s
+            val s = Socket()
+            socket = s
+            s.use {
+                s.connect(InetSocketAddress(host, port), 1500)
+                s.soTimeout = 250
                 writer = OutputStreamWriter(s.getOutputStream(), Charsets.UTF_8)
                 val reader = BufferedReader(InputStreamReader(s.getInputStream(), Charsets.UTF_8))
                 onState(BridgeRuntime.LinkState.CONNECTING, host)
@@ -193,7 +197,11 @@ class BridgeClient(
             "capabilities_request" -> sendCapabilities()
             "input" -> {
                 if (!allowEvent()) {
-                    onStatus("Input rate limit exceeded")
+                    val now = System.currentTimeMillis()
+                    if (now - lastRateStatus >= 2000) {
+                        lastRateStatus = now
+                        onStatus("Input rate limit exceeded")
+                    }
                     return
                 }
                 onInput(payload)
@@ -216,7 +224,8 @@ class BridgeClient(
             "ack", "heartbeat" -> Unit
             else -> onStatus("Unknown message: $type")
         }
-        if (type != "ack" && type != "heartbeat") {
+        val isPointerMove = type == "input" && payload.optString("action") == "move"
+        if (type != "ack" && type != "heartbeat" && !isPointerMove) {
             send("ack", JSONObject().put("echoType", type), current)
         }
     }

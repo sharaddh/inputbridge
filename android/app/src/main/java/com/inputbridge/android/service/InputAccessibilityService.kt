@@ -25,6 +25,12 @@ class InputAccessibilityService : AccessibilityService() {
     private var cursorView: View? = null
     private var cursorParams: WindowManager.LayoutParams? = null
     private var cursorVisible = false
+    private var cursorAddLogged = false
+    private var windowManager: WindowManager? = null
+    private var screenWidth = 1
+    private var screenHeight = 1
+    private var statusBarHeight = 0
+    private var navigationBarHeight = 0
     private val mainHandler = Handler(Looper.getMainLooper())
     private val pendingCursor = floatArrayOf(0.5f, 0.5f)
     private var cursorUpdateScheduled = false
@@ -32,22 +38,30 @@ class InputAccessibilityService : AccessibilityService() {
         cursorUpdateScheduled = false
         applyCursorPosition(pendingCursor[0], pendingCursor[1])
     }
+    private var pendingWheel = 0
+    private var wheelUpdateScheduled = false
+    private val wheelUpdateRunnable = Runnable {
+        wheelUpdateScheduled = false
+        val delta = pendingWheel
+        pendingWheel = 0
+        if (delta != 0) dispatchSwipe(0.5f, 0.5f, 0.5f, if (delta > 0) 0.75f else 0.25f, 140)
+    }
 
     override fun onCreate() {
         super.onCreate()
-        addCursor()
+        refreshMetrics()
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
         serviceInfo = AccessibilityServiceInfo().apply {
-            flags = AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS or
-                AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
-            eventTypes = AccessibilityEvent.TYPES_ALL_MASK
+            flags = AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
+            eventTypes = 0
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
-            notificationTimeout = 100
         }
+        refreshMetrics()
+        addCursor()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
@@ -91,10 +105,7 @@ class InputAccessibilityService : AccessibilityService() {
                     "back" -> globalAction(GLOBAL_ACTION_BACK)
                 }
             }
-            "wheel" -> {
-                val delta = payload.optInt("delta", 0)
-                if (delta != 0) swipe(0.5f, 0.5f, 0.5f, if (delta > 0) 0.75f else 0.25f, 180)
-            }
+            "wheel" -> queueWheel(payload.optInt("delta", 0))
         }
     }
 
@@ -114,32 +125,45 @@ class InputAccessibilityService : AccessibilityService() {
         mainHandler.post { performGlobalAction(action) }
     }
 
-    private fun tap(xNorm: Float, yNorm: Float, duration: Long) {
-        mainHandler.post {
-            val x = screenX(xNorm).toFloat()
-            val y = screenY(yNorm).toFloat()
-            val path = Path().apply { moveTo(x, y) }
-            val stroke = GestureDescription.StrokeDescription(path, 0, duration)
-            val gesture = GestureDescription.Builder().addStroke(stroke).build()
-            dispatchGesture(gesture, null, null)
+    private fun queueWheel(delta: Int) {
+        if (delta == 0) return
+        synchronized(this) {
+            pendingWheel = (pendingWheel + delta).coerceIn(-3, 3)
+            if (!wheelUpdateScheduled) {
+                wheelUpdateScheduled = true
+                mainHandler.post(wheelUpdateRunnable)
+            }
         }
+    }
+
+    private fun tap(xNorm: Float, yNorm: Float, duration: Long) {
+        mainHandler.post { dispatchTap(xNorm, yNorm, duration) }
+    }
+
+    private fun dispatchTap(xNorm: Float, yNorm: Float, duration: Long) {
+        val path = Path().apply { moveTo(screenX(xNorm).toFloat(), screenY(yNorm).toFloat()) }
+        val stroke = GestureDescription.StrokeDescription(path, 0, duration)
+        dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
 
     private fun swipe(x1: Float, y1: Float, x2: Float, y2: Float, duration: Long) {
-        mainHandler.post {
-            val path = Path().apply {
-                moveTo(screenX(x1).toFloat(), screenY(y1).toFloat())
-                lineTo(screenX(x2).toFloat(), screenY(y2).toFloat())
-            }
-            val gesture = GestureDescription.Builder()
-                .addStroke(GestureDescription.StrokeDescription(path, 0, duration))
-                .build()
-            dispatchGesture(gesture, null, null)
+        mainHandler.post { dispatchSwipe(x1, y1, x2, y2, duration) }
+    }
+
+    private fun dispatchSwipe(x1: Float, y1: Float, x2: Float, y2: Float, duration: Long) {
+        val path = Path().apply {
+            moveTo(screenX(x1).toFloat(), screenY(y1).toFloat())
+            lineTo(screenX(x2).toFloat(), screenY(y2).toFloat())
         }
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, duration))
+            .build()
+        dispatchGesture(gesture, null, null)
     }
 
     private fun addCursor() {
-        val manager = getSystemService(WINDOW_SERVICE) as? WindowManager ?: return
+        refreshMetrics()
+        val manager = windowManager ?: return
         val density = resources.displayMetrics.density
         val width = (28 * density).toInt().coerceAtLeast(1)
         val height = (32 * density).toInt().coerceAtLeast(1)
@@ -196,13 +220,16 @@ class InputAccessibilityService : AccessibilityService() {
                 cursorParams = params
                 view.visibility = if (cursorVisible) View.VISIBLE else View.GONE
                 moveCursor(0.5f, 0.5f)
-                BridgeRuntime.log(
-                    if (type == WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY) {
-                        "Cursor overlay added (accessibility)"
-                    } else {
-                        "Cursor overlay added (draw over apps)"
-                    }
-                )
+                if (!cursorAddLogged) {
+                    cursorAddLogged = true
+                    BridgeRuntime.log(
+                        if (type == WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY) {
+                            "Cursor overlay added (accessibility)"
+                        } else {
+                            "Cursor overlay added (draw over apps)"
+                        }
+                    )
+                }
                 return
             }
             lastError = result.exceptionOrNull()
@@ -212,6 +239,7 @@ class InputAccessibilityService : AccessibilityService() {
     }
 
     fun refreshCursor() {
+        refreshMetrics()
         removeCursor()
         addCursor()
     }
@@ -229,23 +257,27 @@ class InputAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun refreshMetrics() {
+        windowManager = getSystemService(WINDOW_SERVICE) as? WindowManager
+        val metrics = resources.displayMetrics
+        screenWidth = metrics.widthPixels.coerceAtLeast(1)
+        screenHeight = metrics.heightPixels.coerceAtLeast(1)
+        statusBarHeight = dimension("status_bar_height")
+        navigationBarHeight = dimension("navigation_bar_height")
+    }
+
     private fun dimension(name: String): Int {
         val id = resources.getIdentifier(name, "dimen", "android")
         return if (id > 0) resources.getDimensionPixelSize(id) else 0
     }
 
     private fun screenX(norm: Float): Int {
-        val width = resources.displayMetrics.widthPixels
-        return (norm.coerceIn(0f, 1f) * width).toInt().coerceIn(0, (width - 1).coerceAtLeast(0))
+        return (norm.coerceIn(0f, 1f) * screenWidth).toInt().coerceIn(0, screenWidth - 1)
     }
 
     private fun screenY(norm: Float): Int {
-        val metrics = resources.displayMetrics
-        val top = dimension("status_bar_height")
-        val bottom = dimension("navigation_bar_height")
-        val usable = (metrics.heightPixels - top - bottom).coerceAtLeast(1)
-        return (top + norm.coerceIn(0f, 1f) * usable).toInt()
-            .coerceIn(0, (metrics.heightPixels - 1).coerceAtLeast(0))
+        val usable = (screenHeight - statusBarHeight - navigationBarHeight).coerceAtLeast(1)
+        return (statusBarHeight + norm.coerceIn(0f, 1f) * usable).toInt().coerceIn(0, screenHeight - 1)
     }
 
     private fun moveCursor(xNorm: Float, yNorm: Float) {
@@ -263,16 +295,15 @@ class InputAccessibilityService : AccessibilityService() {
         if (!cursorVisible) return
         val view = cursorView ?: return
         val params = cursorParams ?: return
-        val manager = getSystemService(WINDOW_SERVICE) as? WindowManager ?: return
-        val metrics = resources.displayMetrics
-        params.x = screenX(xNorm).coerceIn(0, (metrics.widthPixels - params.width).coerceAtLeast(0))
-        params.y = screenY(yNorm).coerceIn(0, (metrics.heightPixels - params.height).coerceAtLeast(0))
+        val manager = windowManager ?: return
+        params.x = screenX(xNorm).coerceIn(0, (screenWidth - params.width).coerceAtLeast(0))
+        params.y = screenY(yNorm).coerceIn(0, (screenHeight - params.height).coerceAtLeast(0))
         runCatching { manager.updateViewLayout(view, params) }
     }
 
     private fun removeCursor() {
         val view = cursorView ?: return
-        val manager = getSystemService(WINDOW_SERVICE) as? WindowManager ?: return
+        val manager = windowManager ?: return
         runCatching { manager.removeView(view) }
         cursorView = null
         cursorParams = null

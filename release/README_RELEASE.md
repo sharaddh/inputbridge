@@ -14,13 +14,23 @@ QR-only MVP built on 2026-11-21 from the current source.
 ## Android
 
 - `InputBridge-Android\InputBridge-release.apk` — signed, installable, evaluation certificate.
-  - Size: 5,409,554 bytes.
-  - SHA-256: `4C84A567F38DDF5A5171F2689E1FE07C8FCB8991992E3AA64A5873BB7683EBAA`
+  - Size: 5,419,666 bytes.
+  - SHA-256: `65BB27BA3E233931482B3A4910C7E18D2EF42D830A3C81FDD9F4A6B3EF1CAFDD`
   - Signer DN: `CN=InputBridge MVP, OU=Local, O=InputBridge, L=Local, ST=Local, C=US`
   - Certificate SHA-256 digest: `aa0542db2feb9f1e2b33856ad8eba952a0d1a4cd8720769d696b2cf3626e9535`
 - `InputBridge-Android\InputBridge-debug.apk` — debug-signed development build.
-  - Size: 7,567,432 bytes.
-  - SHA-256: `DC1662B42881FC4F50B831197783383196CD9E01FDF16C2E9640CD52B1835EB5`
+  - Size: 6,784,792 bytes.
+  - SHA-256: `015508AF7DC61BB6DE71BC724E2A8452B5FC278D20C8FDAC3A606D19E2CC715A`
+
+Android version: `0.2.0-smooth` (`versionCode=2`).
+
+## Performance and UX changes
+
+- The accessibility service no longer listens to all accessibility events or retrieves window content.
+- UI status/log updates are coalesced and only changed text views are rewritten.
+- Cursor movement uses cached screen metrics, bar insets, and window manager.
+- Wheel events are coalesced into one gesture; pointer-move ACK traffic was removed.
+- Main screen uses Material cards, a color-coded connection chip, larger touch targets, and a contained activity log.
 
 Install with adb:
 ```powershell

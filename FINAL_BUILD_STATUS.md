@@ -11,8 +11,8 @@ The pairing flow has been changed from manual IP + 6-digit code to QR-only: Wind
 | Artifact | Size (bytes) | SHA-256 |
 | --- | ---: | --- |
 | `release/InputBridge-Windows/InputBridge.exe` | 1,973,356 | `1601123C8FB0FAB824A6E037CC2BDB3CEF07AC9E008E5067425E7061A247AE8F` |
-| `release/InputBridge-Android/InputBridge-release.apk` | 5,409,554 | `4C84A567F38DDF5A5171F2689E1FE07C8FCB8991992E3AA64A5873BB7683EBAA` |
-| `release/InputBridge-Android/InputBridge-debug.apk` | 7,567,432 | `DC1662B42881FC4F50B831197783383196CD9E01FDF16C2E9640CD52B1835EB5` |
+| `release/InputBridge-Android/InputBridge-release.apk` | 5,419,666 | `65BB27BA3E233931482B3A4910C7E18D2EF42D830A3C81FDD9F4A6B3EF1CAFDD` |
+| `release/InputBridge-Android/InputBridge-debug.apk` | 6,784,792 | `015508AF7DC61BB6DE71BC724E2A8452B5FC278D20C8FDAC3A606D19E2CC715A` |
 
 Windows release folder contains 941 files including `InputBridge.exe` and `_internal/`; keep the folder intact.
 
@@ -48,6 +48,14 @@ Windows release folder contains 941 files including `InputBridge.exe` and `_inte
   - `app/src/main/java/com/inputbridge/android/MainActivity.kt`: **Scan laptop QR**, camera permission, disconnect, revoke, accessibility/IME setup.
 - Added dependency `com.journeyapps:zxing-android-embedded:4.3.0` and `CAMERA` permission.
 - Added a visible overlay cursor in `InputAccessibilityService.kt` that follows Windows pointer `move`/`down`/`up` messages using normalized coordinates; it first tries `TYPE_ACCESSIBILITY_OVERLAY`, then falls back to `TYPE_APPLICATION_OVERLAY` when **Display over other apps** is granted. Added an **Allow cursor overlay** button and phone-log diagnostics (`Cursor overlay added...` / `Cursor overlay failed...`); Cursor updates, gesture dispatch, and global actions are posted to Android's main thread so network-thread input cannot silently fail. The cursor is hidden unless a `mode` message enables mouse routing, and tap/gesture coordinates use the same status/navigation-bar-aware mapping as the overlay to fix click offset. Scroll direction was reversed to match normal mouse wheel behavior. `pointerMove` capability now reports `true` when the accessibility service is active.
+- Performance/UX pass for v0.2.0:
+  - Accessibility service no longer subscribes to all accessibility events or window content; it only requests filtered key events, removing a major main-thread event flood.
+  - Status/log/capability updates are coalesced on the Android main thread; unchanged TextViews are not rewritten, and the log buffer is bounded with an O(1) queue.
+  - Cursor movement uses cached screen metrics, cached system bar insets, and a cached `WindowManager` instead of doing resource lookups per pointer update.
+  - Wheel events are coalesced into one gesture instead of queueing a gesture per Windows wheel tick; high-frequency pointer moves no longer generate ACK packets.
+  - Socket connect has a timeout and can be cancelled promptly; rate-limit warnings are throttled.
+  - Main screen redesigned into compact Material cards with a color-coded connection chip, current status line, clearer capability summary, and a contained scrolling activity log.
+  - Android version bumped to `versionCode=2`, `versionName=0.2.0-smooth`.
 - Removed obsolete `BridgeServer.kt`.
 - Builds:
   ```powershell
