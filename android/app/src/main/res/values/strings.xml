@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">InputBridge</string>
-    <string name="app_subtitle">Share one keyboard and mouse with your phone.</string>
+    <string name="app_subtitle">One keyboard. One mouse. Two screens.</string>
     <string name="state_idle">STOPPED</string>
     <string name="caps_unknown">Capabilities: unknown</string>
     <string name="section_connect">Connect</string>
@@ -19,4 +19,112 @@
     <string name="log_empty">Ready.</string>
     <string name="accessibility_description">InputBridge uses this service only to dispatch taps, swipes and limited navigation actions requested by the paired laptop while Phone mode is active.</string>
     <string name="ime_label">InputBridge keyboard</string>
+
+    <string name="state_not_paired">Not paired</string>
+    <string name="state_not_connected">Not connected</string>
+    <string name="state_connecting">Connecting</string>
+    <string name="state_paired">Paired</string>
+    <string name="state_connected">Connected</string>
+    <string name="input_status">Input status</string>
+    <string name="input_mode_touch_pointer">Touch Pointer</string>
+    <string name="input_mode_hint">Visual cursor with taps and swipes. Not a native Android mouse.</string>
+    <string name="session_idle">Ready when your laptop is</string>
+    <string name="session_active">Laptop is controlling this phone</string>
+    <string name="paired_device">Paired with %1$s</string>
+    <string name="checklist_title">Setup checklist</string>
+    <string name="checklist_pair">Pair your laptop</string>
+    <string name="checklist_access">Accessibility service</string>
+    <string name="checklist_keyboard">InputBridge keyboard</string>
+    <string name="checklist_overlay">Cursor overlay</string>
+    <string name="check_done">Done</string>
+    <string name="check_needed">Needed</string>
+    <string name="pair_explanation">Scan the QR code in the Windows app to connect securely on your local network.</string>
+    <string name="access_explanation">Lets InputBridge perform the taps and swipes your laptop sends. No typed content is read.</string>
+    <string name="keyboard_explanation">Select the InputBridge keyboard so laptop keystrokes can type into text fields.</string>
+    <string name="overlay_explanation">Shows the Touch Pointer cursor on top of other apps.</string>
+    <string name="cursor_appearance">Cursor appearance</string>
+    <string name="customize_cursor">Customize cursor</string>
+    <string name="preview_hint">The dot marks the active click point (hotspot).</string>
+    <string name="help_diagnostics">Help &amp; diagnostics</string>
+    <string name="settings">Settings</string>
+    <string name="settings_title">Settings</string>
+    <string name="back">Back</string>
+    <string name="section_device">Device</string>
+    <string name="section_appearance">Appearance</string>
+    <string name="section_pointer">Pointer</string>
+    <string name="section_scroll">Scroll</string>
+    <string name="section_buttons">Button mapping</string>
+    <string name="section_cursor">Cursor</string>
+    <string name="section_calibration">Calibration</string>
+    <string name="device_name">Device name</string>
+    <string name="device_name_hint">Name shown on your laptop</string>
+    <string name="save_device_name">Save name</string>
+    <string name="saved">Saved</string>
+    <string name="theme_label">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="pointer_rate_label">Pointer update rate</string>
+    <string name="rate_30">30 Hz</string>
+    <string name="rate_60">60 Hz</string>
+    <string name="rate_120">120 Hz</string>
+    <string name="scroll_direction_label">Scroll direction</string>
+    <string name="scroll_natural">Natural</string>
+    <string name="scroll_reversed">Reversed</string>
+    <string name="scroll_sensitivity_label">Scroll sensitivity</string>
+    <string name="right_button_label">Right button</string>
+    <string name="middle_button_label">Middle button</string>
+    <string name="action_context_menu">Context menu</string>
+    <string name="action_back">Back</string>
+    <string name="action_none">None</string>
+    <string name="action_recents">Recents</string>
+    <string name="cursor_shape_label">Shape</string>
+    <string name="shape_classic">Classic arrow</string>
+    <string name="shape_compact">Compact arrow</string>
+    <string name="shape_dot">Dot</string>
+    <string name="shape_crosshair">Crosshair</string>
+    <string name="cursor_size_label">Size</string>
+    <string name="cursor_fill_label">Fill color</string>
+    <string name="cursor_outline_label">Outline color</string>
+    <string name="cursor_outline_width_label">Outline width</string>
+    <string name="cursor_hotspot_x_label">Hotspot X</string>
+    <string name="cursor_hotspot_y_label">Hotspot Y</string>
+    <string name="value_dp">%1$d dp</string>
+    <string name="value_decimal">%1$.1f</string>
+    <string name="value_percent">%1$d%%</string>
+    <string name="reset_cursor">Reset cursor to default</string>
+    <string name="open_calibration">Align cursor and tap point</string>
+    <string name="reset_calibration">Reset calibration</string>
+    <string name="calibration_title">Cursor calibration</string>
+    <string name="calibration_instructions">Tap the center of the crosshair exactly once. The difference between the target and your tap is saved as a device-specific correction.</string>
+    <string name="calibration_target">Crosshair tap target</string>
+    <string name="calibration_offset">Stored offset: %1$d px X, %2$d px Y</string>
+    <string name="done">Done</string>
+    <string name="toast_connecting">Connecting to laptop</string>
+    <string name="toast_invalid_qr">Invalid QR: %1$s</string>
+    <string name="toast_camera_needed">Camera permission is needed to scan the QR</string>
+    <string name="toast_overlay_refreshed">Cursor overlay refreshed</string>
+    <string name="toast_pairing_revoked">Pairing revoked</string>
+    <string name="toast_calibration_saved">Calibration saved</string>
+    <string name="diagnostics_title">Help &amp; diagnostics</string>
+    <string name="status_title">Connection</string>
+    <string name="connection_message">Message: %1$s</string>
+    <string name="capabilities_title">Capability summary</string>
+    <string name="capability_keyboard">Keyboard input: %1$s</string>
+    <string name="capability_pointer">Touch pointer: %1$s</string>
+    <string name="capability_typing">Text typing: %1$s</string>
+    <string name="capability_scroll">Scroll gestures: %1$s</string>
+    <string name="availability_ready">Ready</string>
+    <string name="availability_off">Not ready</string>
+    <string name="touch_pointer_limits">Touch Pointer limitations: this app uses accessibility gestures, not a native Android mouse. There is no native hover, no reliable desktop-style drag, no mouse wheel semantics, and right-click does not automatically behave like a native context-menu click. Middle or back buttons may map to system actions. Scroll is translated into a swipe. Some apps will not respond like desktop applications.</string>
+    <string name="recent_logs">Recent status messages</string>
+
+    <string-array name="cursor_colors">
+        <item>White</item>
+        <item>Black</item>
+        <item>Blue</item>
+        <item>Red</item>
+        <item>Yellow</item>
+        <item>Green</item>
+    </string-array>
 </resources>

@@ -64,8 +64,9 @@ SM_CXSCREEN = 0
 SM_CYSCREEN = 1
 LLKHF_UP = 0x80
 LLMHF_INJECTED = 0x10
-MOVE_INTERVAL = 0.01
+MOVE_INTERVAL = 0.0
 QUEUE_MAXSIZE = 512
+MOVE_MAX_AGE = 0.25
 
 LRESULT = ctypes.c_ssize_t
 HMENU = getattr(wt, "HMENU", wt.HANDLE)
@@ -165,6 +166,10 @@ class InputCapture:
         self._ctrl_down = False
         self._alt_down = False
         self._last_move = 0.0
+        self._latest_move: Optional[Dict[str, Any]] = None
+        self._move_lock = threading.Lock()
+        self._moves_captured = 0
+        self._moves_coalesced = 0
         self._cursor_hidden = False
         self._dropped = 0
         self._screen_w = max(1, user32.GetSystemMetrics(SM_CXSCREEN))
@@ -241,7 +246,43 @@ class InputCapture:
     def _invoke(callback: Callable[[], None]) -> None:
         threading.Thread(target=callback, daemon=True).start()
 
+    def capture_stats(self) -> Dict[str, int]:
+        with self._move_lock:
+            return {
+                "moves_captured": self._moves_captured,
+                "moves_coalesced": self._moves_coalesced,
+                "queue_depth": self.events.qsize(),
+                "dropped": self._dropped,
+            }
+
+    def take_latest_move(self) -> Optional[Dict[str, Any]]:
+        with self._move_lock:
+            move = self._latest_move
+            self._latest_move = None
+            return move
+
+    def clear_pending_input(self) -> None:
+        self.take_latest_move()
+        try:
+            while True:
+                self.events.get_nowait()
+        except queue.Empty:
+            pass
+
+    def _enqueue_move(self, payload: Dict[str, Any]) -> None:
+        payload = dict(payload)
+        payload["tCaptureMonoNs"] = time.monotonic_ns()
+        payload["tCaptureWallMs"] = int(time.time() * 1000)
+        with self._move_lock:
+            if self._latest_move is not None:
+                self._moves_coalesced += 1
+            self._latest_move = payload
+            self._moves_captured += 1
+
     def _enqueue(self, payload: Dict[str, Any]) -> None:
+        payload = dict(payload)
+        payload.setdefault("tCaptureMonoNs", time.monotonic_ns())
+        payload.setdefault("tCaptureWallMs", int(time.time() * 1000))
         msg = {"v": 1, "type": "input", "payload": payload}
         try:
             self.events.put_nowait(msg)
@@ -366,17 +407,14 @@ class InputCapture:
                 info = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
                 suppress = True
                 if wParam == WM_MOUSEMOVE:
-                    now = time.monotonic()
-                    if now - self._last_move >= MOVE_INTERVAL:
-                        self._last_move = now
-                        self._enqueue(
-                            {
-                                "kind": "pointer",
-                                "action": "move",
-                                "x": round(info.pt.x / self._screen_w, 5),
-                                "y": round(info.pt.y / self._screen_h, 5),
-                            }
-                        )
+                    self._enqueue_move(
+                        {
+                            "kind": "pointer",
+                            "action": "move",
+                            "x": round(info.pt.x / self._screen_w, 6),
+                            "y": round(info.pt.y / self._screen_h, 6),
+                        }
+                    )
                     suppress = False
                 elif wParam in (WM_LBUTTONDOWN, WM_LBUTTONUP, WM_RBUTTONDOWN, WM_RBUTTONUP,
                                 WM_MBUTTONDOWN, WM_MBUTTONUP, WM_XBUTTONDOWN, WM_XBUTTONUP):

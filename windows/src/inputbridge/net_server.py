@@ -220,7 +220,7 @@ class BridgeServer:
 
     def _handle_line(self, line: bytes) -> None:
         try:
-            obj = decode_line(line)
+            obj = decode_line(line, self._token if self._paired else None)
         except ProtocolError as exc:
             self._status(f"Bad message: {exc}")
             return

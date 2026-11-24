@@ -2,7 +2,7 @@
 
 InputBridge is a Windows 11 + Android companion app that routes a physical keyboard/mouse between the laptop and an Android phone.
 
-**Status:** QR-only functional MVP v0.2.0-smooth built on 2026-11-21.
+**Status:** QR-only Touch Pointer MVP v0.3.1-fix built on 2026-11-22.
 
 [Download the latest Windows ZIP and Android APKs from GitHub Releases](https://github.com/sharaddh/inputbridge/releases/latest).
 
@@ -25,8 +25,9 @@ SHA-256 checksums are recorded in `release/README_RELEASE.md` and `FINAL_BUILD_S
 - Windows input capture: low-level keyboard/mouse hooks with routing-aware suppression, bounded queue, worker thread, watchdog, and fail-safe return to Laptop mode.
 - Hotkeys: `Shift+CapsLock` toggles phone mode; in Phone mode `CapsLock` alone also returns to Laptop; `Ctrl+Alt+F12` is the emergency local-return shortcut.
 - Android input injection: taps/swipes/scrolls through the Accessibility service; text/navigation through the InputBridge IME. A visual cursor overlay follows the Windows mouse in Phone mode and stays hidden otherwise. Capabilities auto-refresh after the IME is selected.
-- Android v0.2.0 reduces jank with no global accessibility-event flood, coalesced UI/log updates, cached cursor geometry, coalesced wheel gestures, and reduced ACK traffic.
-- Transport security: HMAC-SHA256 signed JSON envelopes with sequence/timestamp replay checks; the pairing key comes from the scanned QR.
+- Touch Pointer pipeline: latest-value pointer slot, 60 Hz paced sender (30/120 Hz configurable), Choreographer frame pacing, hotspot-aware cursor overlay, calibration screen, WindowMetrics/Insets mapping, and latest-point taps/scrolls.
+- Redesigned Windows and Android UI: one primary action, setup checklist, Diagnostics, personalization for theme/device name/scroll/buttons/cursor, and status-only telemetry.
+- Transport security: QR pairing remains HMAC-signed protocol v1; input/control messages use protocol v2 AES-256-GCM with key derived from the QR token, plus sequence/timestamp replay checks.
 
 ## Quick start
 
@@ -34,7 +35,7 @@ SHA-256 checksums are recorded in `release/README_RELEASE.md` and `FINAL_BUILD_S
 2. On Android, open InputBridge and enable the Accessibility service. Select the **InputBridge** keyboard when you want to type from the phone.
 3. Download and extract `InputBridge-Windows.zip` from the latest GitHub Release, then run `InputBridge.exe` on Windows.
 4. Tap **Scan laptop QR** in the Android app and point the camera at the QR on the Windows screen.
-5. Use the routing buttons or `Shift+CapsLock`. Use **EMERGENCY: Laptop** or `Ctrl+Alt+F12` to restore local input immediately.
+5. After the phone connects, press **Switch to Phone** (or use `Shift+CapsLock`). Connection alone does not start routing, and the cursor appears only while Phone mode includes mouse routing. Use **EMERGENCY: Laptop** or `Ctrl+Alt+F12` to restore local input immediately.
 6. Tap **New QR** on Windows to rotate the key and invalidate the current phone link.
 
 Both devices must be on the same trusted local network.
@@ -71,7 +72,7 @@ python -m unittest discover -s tests -p 'test_*.py' -v
 ## Safety and limits
 
 - Default is Laptop mode; errors and disconnects fail back to local input.
-- Use only on a **trusted local network**. There is no TLS/encryption yet; HMAC provides integrity/authentication, not confidentiality.
-- A visual cursor overlay follows the Windows mouse in Phone mode; Android gestures are still tap/swipe based with status/navigation-bar-aware click mapping, with no native hover. No arbitrary Android system-key injection or secure-desktop/UAC coverage.
+- Use only on a **trusted local network**. Pairing is HMAC-signed and input traffic is AES-256-GCM encrypted, but there is no TLS, device identity registry, or production key management.
+- Touch Pointer is an accessibility-gesture compatibility layer with hotspot-aware cursor rendering and calibration. It is not native Android mouse support: no true hover, drag, wheel, or right-click semantics in all apps. No arbitrary Android system-key injection or secure-desktop/UAC coverage.
 - The release signing certificate is for evaluation only, not Play Store or production distribution.
 - See `docs/SECURITY.md` for the gap between MVP controls and production requirements.

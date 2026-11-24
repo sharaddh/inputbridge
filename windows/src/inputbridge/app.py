@@ -1,134 +1,132 @@
-"""InputBridge Windows control panel (QR-only MVP)."""
+"""InputBridge Windows control panel."""
 from __future__ import annotations
 
-import json
 import secrets
 import sys
 import tkinter as tk
-from tkinter import messagebox, ttk
-from typing import Any, Dict
+from pathlib import Path
+from tkinter import filedialog, messagebox, ttk
+from typing import Any, Callable, Dict, List
 
 if __name__ == "__main__" and __package__ is None:
-    from pathlib import Path
-
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from inputbridge.config import load_config, save_config
+from inputbridge.config import clear_pairing, load_config, save_config
 from inputbridge.controller import BridgeController
 from inputbridge.net_server import BridgeServer, local_ip
 from inputbridge.qrcode import make_matrix
 from inputbridge.routing_state import RoutingMode
 from inputbridge.tray import TrayIcon
+from inputbridge.ui.diagnostics import DiagnosticsView
+from inputbridge.ui.home import HomeView
+from inputbridge.ui.settings import SettingsView
+from inputbridge.ui.theme import ThemeManager
 
-MODE_LABELS = {
-    RoutingMode.LAPTOP: "LAPTOP - local input",
-    RoutingMode.PHONE_BOTH: "PHONE - keyboard + mouse",
-    RoutingMode.PHONE_KEYBOARD: "PHONE - keyboard only",
-    RoutingMode.PHONE_MOUSE: "PHONE - mouse only",
-    RoutingMode.PAUSED: "PAUSED - local input",
-    RoutingMode.CONNECTING: "CONNECTING - waiting for phone",
-    RoutingMode.ERROR_SAFE: "ERROR - local input restored",
-}
+MAX_LOG_LINES = 500
 
 
 class InputBridgeApp:
     def __init__(self) -> None:
         self.cfg: Dict[str, Any] = load_config()
         self.port = int(self.cfg.get("port", 27123))
-        self.token = secrets.token_hex(16)
+        self.token = self._initial_token()
+        self.log_lines: List[str] = []
+
         self.root = tk.Tk()
         self.root.title("InputBridge")
-        self.root.geometry("700x720")
-        self.root.minsize(660, 680)
+        self.root.geometry("820x780")
+        self.root.minsize(760, 660)
+        self.theme = ThemeManager(self.root, self.cfg)
 
         self.server = BridgeServer(
             port=self.port,
             token_hex=self.token,
             device_id=str(self.cfg.get("device_id", "")),
             device_name=str(self.cfg.get("device_name", "Windows laptop")),
+            on_status=self._log,
         )
-        self.controller = BridgeController(self.server, on_mode=self._on_mode, on_status=self._log, on_capabilities=self._on_capabilities)
+        self.controller = BridgeController(
+            self.server,
+            on_mode=self._on_mode,
+            on_status=self._log,
+            on_capabilities=self._on_capabilities,
+            pointer_interval=1.0 / float(self.cfg.get("pointer_rate_hz", 60)),
+        )
+        original_state = self.server.on_state
+
+        def state_changed(state: str) -> None:
+            if original_state:
+                original_state(state)
+            self.root.after(0, self._refresh)
+
+        self.server.on_state = state_changed
         self.tray = TrayIcon(on_command=self._on_tray_command, on_status=self._log)
 
         self._build_ui()
         self._draw_qr()
         self._poll_status()
 
+    def _initial_token(self) -> str:
+        raw = str(self.cfg.get("paired_token") or "").strip()
+        try:
+            token = bytes.fromhex(raw)
+        except ValueError:
+            token = b""
+        if len(token) not in (16, 32):
+            token = secrets.token_bytes(16)
+            self.cfg["paired_token"] = token.hex()
+            save_config(self.cfg)
+        return self.cfg["paired_token"]
+
     def _build_ui(self) -> None:
-        main = ttk.Frame(self.root, padding=12)
+        main = ttk.Frame(self.root, style="TFrame")
         main.pack(fill=tk.BOTH, expand=True)
 
-        header = ttk.Frame(main)
-        header.pack(fill=tk.X)
-        ttk.Label(header, text="InputBridge", font=("", 18, "bold")).pack(side=tk.LEFT)
+        header = ttk.Frame(main, style="TFrame")
+        header.pack(fill=tk.X, padx=(self.theme.spacing["lg"], self.theme.spacing["lg"]), pady=(self.theme.spacing["md"], self.theme.spacing["sm"]))
+        ttk.Label(header, text="InputBridge", style="Title.TLabel").pack(side=tk.LEFT)
+        ttk.Label(header, text="One keyboard. One mouse. Two screens.", style="Muted.TLabel").pack(side=tk.LEFT, padx=(self.theme.spacing["md"], 0))
+        self.connection_var = tk.StringVar(value="Waiting for phone")
+        self.connection_label = ttk.Label(header, textvariable=self.connection_var, style="Status.TLabel")
+        self.connection_label.pack(side=tk.RIGHT, padx=(0, self.theme.spacing["md"]))
+        ttk.Button(header, text="Diagnostics", style="Secondary.TButton", command=self._open_diagnostics).pack(side=tk.RIGHT, padx=(0, self.theme.spacing["sm"]))
+        ttk.Button(header, text="Settings", style="Secondary.TButton", command=self._open_settings).pack(side=tk.RIGHT, padx=(0, self.theme.spacing["sm"]))
+
+        self.notebook = ttk.Notebook(main)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=(self.theme.spacing["lg"], self.theme.spacing["lg"]))
+
+        actions: Dict[str, Callable[..., None]] = {
+            "set_mode": lambda mode: self.controller.set_mode(mode),
+            "switch": self._switch_to_phone,
+            "laptop": lambda: self.controller.set_mode(RoutingMode.LAPTOP),
+            "emergency": self.controller.emergency,
+            "new_qr": self._new_qr,
+            "disconnect": self._disconnect,
+            "shortcuts": lambda: self._open_settings("Shortcuts"),
+            "devices": lambda: self._open_settings("Devices"),
+            "diagnostics": self._open_diagnostics,
+            "save": self._save_settings,
+            "re_pair": self._new_qr,
+            "revoke": self._revoke,
+            "export_log": self._export_log,
+            "clear_log": self._clear_log,
+        }
+
+        self.home = HomeView(self.notebook, self.theme, actions)
+        self.settings = SettingsView(self.notebook, self.theme, self.cfg, actions)
+        self.diagnostics = DiagnosticsView(self.notebook, self.theme, actions)
+        self.notebook.add(self.home, text="Home")
+        self.notebook.add(self.settings, text="Settings")
+        self.notebook.add(self.diagnostics, text="Diagnostics")
+        self.diagnostics.set_enabled(bool(self.cfg.get("diagnostics_enabled", True)))
+
+        footer = ttk.Frame(main, style="TFrame")
+        footer.pack(fill=tk.X, padx=(self.theme.spacing["lg"], self.theme.spacing["lg"]), pady=(self.theme.spacing["sm"], self.theme.spacing["md"]))
         ttk.Label(
-            header,
-            text="Shift+CapsLock: toggle   |   CapsLock in Phone: Laptop   |   Ctrl+Alt+F12: emergency",
-            foreground="gray",
-        ).pack(side=tk.RIGHT)
-
-        mode_frame = ttk.LabelFrame(main, text="Routing", padding=10)
-        mode_frame.pack(fill=tk.X, pady=(10, 4))
-        self.mode_var = tk.StringVar(value=MODE_LABELS[RoutingMode.LAPTOP])
-        ttk.Label(mode_frame, textvariable=self.mode_var, font=("", 15, "bold")).pack(anchor=tk.W)
-        self.link_var = tk.StringVar(value="Phone: waiting for QR scan")
-        ttk.Label(mode_frame, textvariable=self.link_var).pack(anchor=tk.W, pady=(2, 0))
-        btn_frame = ttk.Frame(mode_frame)
-        btn_frame.pack(fill=tk.X, pady=(8, 0))
-        for text, command in (
-            ("Laptop", lambda: self.controller.set_mode(RoutingMode.LAPTOP)),
-            ("Both", lambda: self.controller.set_mode(RoutingMode.PHONE_BOTH)),
-            ("Keyboard only", lambda: self.controller.set_mode(RoutingMode.PHONE_KEYBOARD)),
-            ("Mouse only", lambda: self.controller.set_mode(RoutingMode.PHONE_MOUSE)),
-            ("Pause", lambda: self.controller.set_mode(RoutingMode.PAUSED)),
-        ):
-            ttk.Button(btn_frame, text=text, command=command).pack(side=tk.LEFT, padx=(0, 6))
-        ttk.Button(btn_frame, text="EMERGENCY: Laptop", command=lambda: self.controller.emergency()).pack(side=tk.RIGHT)
-
-        qr_frame = ttk.LabelFrame(main, text="Pair with phone (QR)", padding=10)
-        qr_frame.pack(fill=tk.X, pady=4)
-        self.qr_canvas = tk.Canvas(qr_frame, width=225, height=225, highlightthickness=0, bg="white")
-        self.qr_canvas.pack(anchor=tk.CENTER)
-        ttk.Label(qr_frame, text="Scan this QR with the InputBridge phone app", foreground="gray").pack(anchor=tk.CENTER, pady=(4, 6))
-        qr_buttons = ttk.Frame(qr_frame)
-        qr_buttons.pack(fill=tk.X)
-        ttk.Button(qr_buttons, text="New QR", command=self._new_qr).pack(side=tk.LEFT, padx=(0, 6))
-        ttk.Button(qr_buttons, text="Disconnect phone", command=self._disconnect).pack(side=tk.LEFT)
-
-        cap_frame = ttk.LabelFrame(main, text="Phone capabilities", padding=8)
-        cap_frame.pack(fill=tk.X, pady=4)
-        self.cap_var = tk.StringVar(value="Not received yet")
-        ttk.Label(cap_frame, textvariable=self.cap_var, wraplength=660, justify=tk.LEFT).pack(anchor=tk.W)
-
-        settings = ttk.LabelFrame(main, text="Settings", padding=8)
-        settings.pack(fill=tk.X, pady=4)
-        srow = ttk.Frame(settings)
-        srow.pack(fill=tk.X)
-        ttk.Label(srow, text="Default phone mode:").pack(side=tk.LEFT)
-        self.default_mode_var = tk.StringVar(value=str(self.cfg.get("default_mode", "PHONE_BOTH")))
-        ttk.Combobox(
-            srow,
-            textvariable=self.default_mode_var,
-            values=["PHONE_BOTH", "PHONE_KEYBOARD", "PHONE_MOUSE"],
-            state="readonly",
-            width=18,
-        ).pack(side=tk.LEFT, padx=(4, 12))
-        ttk.Button(srow, text="Save settings", command=self._save_settings).pack(side=tk.LEFT)
-
-        log_frame = ttk.LabelFrame(main, text="Log (no key content)", padding=6)
-        log_frame.pack(fill=tk.BOTH, expand=True, pady=4)
-        self.log_text = tk.Text(log_frame, height=8, wrap=tk.WORD)
-        self.log_text.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
-        scroll = ttk.Scrollbar(log_frame, command=self.log_text.yview)
-        scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        self.log_text.configure(yscrollcommand=scroll.set)
-
-        ttk.Label(
-            main,
-            text="MVP limits: text needs the InputBridge keyboard selected on the phone; pointer actions need the accessibility service enabled. Use only on a trusted local network.",
-            wraplength=660,
-            foreground="gray",
-        ).pack(anchor=tk.W, pady=(4, 0))
+            footer,
+            text="Touch Pointer uses gestures, not a native mouse. Trusted networks only: traffic is authenticated but not encrypted.",
+            style="Muted.TLabel",
+        ).pack(anchor=tk.W)
 
     def _qr_payload(self) -> Dict[str, Any]:
         return {"v": 1, "h": local_ip(), "p": self.port, "t": self.token}
@@ -140,67 +138,137 @@ class InputBridgeApp:
         except ValueError as exc:
             self._log(f"[qr] {exc}")
             return
-        self.qr_canvas.delete("all")
-        scale = 5
-        border = 4
-        offset = border * scale
-        for y, row in enumerate(matrix):
-            for x, dark in enumerate(row):
-                if dark:
-                    x1 = offset + x * scale
-                    y1 = offset + y * scale
-                    self.qr_canvas.create_rectangle(x1, y1, x1 + scale, y1 + scale, fill="black", outline="black")
+        self.home.set_qr(matrix)
         self._log(f"[qr] Ready at {payload['h']}:{payload['p']}")
 
-    def _log(self, msg: str) -> None:
+    def _log(self, message: str) -> None:
         def append() -> None:
-            self.log_text.insert(tk.END, msg.rstrip() + "\n")
-            self.log_text.see(tk.END)
+            line = str(message).rstrip()
+            self.log_lines.append(line)
+            if len(self.log_lines) > MAX_LOG_LINES:
+                del self.log_lines[:-MAX_LOG_LINES]
+            if hasattr(self, "diagnostics"):
+                self.diagnostics.append(line)
 
         self.root.after(0, append)
 
     def _on_mode(self, mode: RoutingMode) -> None:
         def update() -> None:
-            self.mode_var.set(MODE_LABELS.get(mode, mode.value))
             self.tray.set_tip(f"InputBridge: {mode.value}")
+            self._refresh()
 
         self.root.after(0, update)
 
-    def _on_capabilities(self, caps: Dict[str, Any]) -> None:
-        text = (
-            f"Accessibility gestures: {caps.get('accessibility', False)} | "
-            f"IME text: {caps.get('ime', False)} | "
-            f"Screen: {caps.get('screenWidth', '?')}x{caps.get('screenHeight', '?')}"
-        )
-        self.root.after(0, lambda: self.cap_var.set(text))
+    def _on_capabilities(self, capabilities: Dict[str, Any]) -> None:
+        def update() -> None:
+            self.home.set_capabilities(capabilities)
+            self.diagnostics.set_capabilities(capabilities)
+
+        self.root.after(0, update)
+
+    def _refresh(self) -> None:
+        connected = self.server.connected
+        paired = self.server.paired
+        mode = self.controller.sm.current
+        self.home.set_state(mode, connected, paired)
+        self.diagnostics.set_status(connected, paired, self.port, str(self.cfg.get("device_name", "Windows laptop")))
+        self.diagnostics.set_metrics(self.controller.metrics())
+        if connected and paired:
+            text = "Phone connected"
+            color = self.theme.palette.success
+        elif connected:
+            text = "Pairing in progress"
+            color = self.theme.palette.warning
+        else:
+            text = "Waiting for phone"
+            color = self.theme.palette.muted
+        self.connection_var.set(text)
+        self.connection_label.configure(foreground=color)
 
     def _poll_status(self) -> None:
-        paired = "paired" if self.server.paired else "not paired"
-        state = "connected" if self.server.connected else "waiting for QR scan"
-        self.link_var.set(f"Phone: {state} ({paired})")
+        self._refresh()
         self.root.after(500, self._poll_status)
+
+    def _switch_to_phone(self) -> None:
+        self.controller.set_mode(self.controller.desired_phone_mode)
+        self.notebook.select(self.home)
+        self._refresh()
 
     def _new_qr(self) -> None:
         self.controller.emergency()
         self.token = secrets.token_hex(16)
+        self.cfg["paired_token"] = self.token
+        save_config(self.cfg)
         self.server.set_token(self.token)
         self.server.start()
         self._draw_qr()
+        self.notebook.select(self.home)
+        self._refresh()
         self._log("[qr] New QR generated; previous phone link invalidated")
 
     def _disconnect(self) -> None:
         self.controller.emergency()
         self.server.stop()
-        self._log("[qr] Phone disconnected")
+        self._refresh()
+        self._log("[device] Phone disconnected")
 
-    def _save_settings(self) -> None:
-        self.cfg["default_mode"] = self.default_mode_var.get()
+    def _revoke(self) -> None:
+        self.controller.emergency()
+        self.server.stop()
+        clear_pairing(self.cfg)
+        self.token = secrets.token_hex(16)
+        self.server.set_token(self.token)
+        self._draw_qr()
+        self._refresh()
+        self._log("[device] Pairing revoked; local input restored")
+
+    def _save_settings(self, settings: Dict[str, Any]) -> None:
+        self.cfg.update(settings)
+        save_config(self.cfg)
+        self.theme.clear_preview()
+        self.server.device_name = str(self.cfg.get("device_name", "Windows laptop"))
         try:
-            self.controller.desired_phone_mode = RoutingMode(self.cfg["default_mode"])
+            self.controller.desired_phone_mode = RoutingMode(str(self.cfg.get("default_mode", "PHONE_BOTH")))
         except ValueError:
             pass
-        save_config(self.cfg)
+        self.home.set_shortcuts(
+            str(self.cfg.get("toggle_shortcut_display", "")),
+            str(self.cfg.get("emergency_shortcut_display", "")),
+        )
+        self.diagnostics.set_enabled(bool(self.cfg.get("diagnostics_enabled", True)))
+        self.tray.set_tip(f"InputBridge: {self.controller.sm.current.value}")
         self._log("[settings] Saved")
+
+    def _export_log(self) -> None:
+        path = filedialog.asksaveasfilename(
+            title="Export InputBridge log",
+            defaultextension=".txt",
+            initialfile="inputbridge-diagnostics.txt",
+            filetypes=(("Text files", "*.txt"), ("All files", "*.*")),
+        )
+        if not path:
+            return
+        try:
+            Path(path).write_text("\n".join(self.log_lines), encoding="utf-8")
+            self._log("[diagnostics] Log exported")
+        except OSError as exc:
+            messagebox.showerror("InputBridge", f"Could not export the log: {exc}")
+
+    def _clear_log(self) -> None:
+        self.log_lines.clear()
+        self.diagnostics.clear()
+
+    def _open_settings(self, section: str | None = None) -> None:
+        self.root.deiconify()
+        self.root.lift()
+        self.notebook.select(self.settings)
+        if section:
+            self.settings.select_tab(section)
+
+    def _open_diagnostics(self) -> None:
+        self.root.deiconify()
+        self.root.lift()
+        self.notebook.select(self.diagnostics)
 
     def _on_tray_command(self, command: str) -> None:
         def run() -> None:
@@ -208,14 +276,13 @@ class InputBridgeApp:
                 self.root.deiconify()
                 self.root.lift()
             elif command == "phone":
-                self.controller.set_mode(self.controller.desired_phone_mode)
+                self._switch_to_phone()
             elif command == "laptop":
-                self.controller.emergency()
+                self.controller.set_mode(RoutingMode.LAPTOP)
             elif command == "pause":
                 self.controller.set_mode(RoutingMode.PAUSED)
             elif command == "settings":
-                self.root.deiconify()
-                self.root.lift()
+                self._open_settings()
             elif command == "exit":
                 self._on_close()
 
@@ -225,8 +292,20 @@ class InputBridgeApp:
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.tray.start()
         self.controller.start()
-        self.server.start()
-        self._log("InputBridge started in Laptop mode. Show the QR to the phone.")
+        try:
+            startup_mode = RoutingMode(str(self.cfg.get("startup_mode", "LAPTOP")))
+        except ValueError:
+            startup_mode = RoutingMode.LAPTOP
+        if startup_mode not in (RoutingMode.LAPTOP, RoutingMode.ERROR_SAFE, RoutingMode.CONNECTING):
+            self.controller.desired_phone_mode = startup_mode
+            self.controller.set_mode(startup_mode)
+        if bool(self.cfg.get("auto_connect", True)) or not str(self.cfg.get("paired_token", "")).strip():
+            self.server.start()
+        else:
+            self._log("[server] Auto-connect is off; use Pair new device to start listening")
+        if bool(self.cfg.get("start_minimized", False)):
+            self.root.withdraw()
+        self._log("InputBridge started in Laptop mode. Show the QR to your phone.")
         self.root.mainloop()
 
     def _on_close(self) -> None:

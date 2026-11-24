@@ -15,6 +15,8 @@ class BridgeIme : InputMethodService() {
         super.onDestroy()
     }
 
+    fun canHandle(): Boolean = currentInputConnection != null
+
     fun handle(payload: JSONObject) {
         val action = payload.optString("action", "")
         if (action != "down" && action != "repeat") return

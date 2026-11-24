@@ -7,6 +7,7 @@ import android.os.Looper
 import android.os.SystemClock
 import com.inputbridge.android.ime.BridgeIme
 import com.inputbridge.android.net.BridgeClient
+import com.inputbridge.android.settings.SettingsStore
 import org.json.JSONObject
 import java.util.ArrayDeque
 import java.util.concurrent.CopyOnWriteArrayList
@@ -39,9 +40,11 @@ object BridgeRuntime {
     private val logBuffer = ArrayDeque<String>()
     private var capsCache: JSONObject? = null
     private var capsCacheAt = 0L
+    private var mouseRouting = false
 
     fun init(context: Context) {
         if (prefs == null) prefs = context.applicationContext.getSharedPreferences("inputbridge", Context.MODE_PRIVATE)
+        SettingsStore.init(context)
     }
 
     val savedTokenHex: String
@@ -142,9 +145,20 @@ object BridgeRuntime {
             "pointer" -> InputAccessibilityService.instance?.handle(payload)
             "key" -> {
                 val ime = BridgeIme.instance
-                if (ime != null) ime.handle(payload) else InputAccessibilityService.instance?.handleKey(payload)
+                if (ime != null && ime.canHandle()) ime.handle(payload) else InputAccessibilityService.instance?.handleKey(payload)
             }
         }
+    }
+
+    fun setMouseRouting(enabled: Boolean) {
+        mouseRouting = enabled
+    }
+
+    fun mouseRouting(): Boolean = mouseRouting
+
+    fun invalidateCapabilities() {
+        capsCache = null
+        capsCacheAt = 0L
     }
 
     fun capabilities(): JSONObject {
@@ -160,6 +174,11 @@ object BridgeRuntime {
         caps.put("scroll", InputAccessibilityService.instance != null)
         caps.put("text", BridgeIme.instance != null)
         caps.put("keyEvents", false)
+        caps.put("pointerRateHz", SettingsStore.pointerRateHz)
+        caps.put("scrollDirection", SettingsStore.scrollDirection)
+        caps.put("scrollSensitivity", SettingsStore.scrollSensitivity)
+        caps.put("rightButtonAction", SettingsStore.rightButtonAction)
+        caps.put("middleButtonAction", SettingsStore.middleButtonAction)
         val screen = android.content.res.Resources.getSystem().displayMetrics
         caps.put("screenWidth", screen.widthPixels)
         caps.put("screenHeight", screen.heightPixels)

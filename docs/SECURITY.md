@@ -11,7 +11,7 @@ Source of truth: `../InputBridge_PRD_SRS_TRD.md` (§8).
 ## MVP controls implemented
 
 1. QR-only pairing: Windows displays a QR with its LAN IP, port, and a one-time 128-bit HMAC key; the phone must physically see the screen to scan it.
-2. The QR key is used to sign the `pair_request` and `pair_approval` messages; later messages use the same agreed key.
+2. The QR key signs `pair_request`/`pair_approval` (protocol v1). Later messages use protocol v2 AES-256-GCM with key `SHA-256("inputbridge-aead-v2" + QR token)`.
 3. **New QR** rotates the key and invalidates the previous phone link; **Forget laptop** clears it on Android.
 4. Sequence numbers, timestamps, and replay rejection (`MAX_CLOCK_SKEW_MS`, seen-sequence cache) on both sides.
 5. Message size limit (64 KiB) and Android input event rate limit (500 events/s).
@@ -21,7 +21,7 @@ Source of truth: `../InputBridge_PRD_SRS_TRD.md` (§8).
 
 ## Production gaps
 
-- **No encryption/TLS.** Signing provides integrity/authentication but not confidentiality. MVP is for a trusted local network only.
+- **No TLS or production key management.** Protocol v2 encrypts post-pairing traffic, but the QR is still a bearer credential and there is no device identity registry, certificate validation, or secure key storage guarantee. MVP is for a trusted local network only.
 - The QR is shown openly on the desktop; anyone who can see/photograph it during the session can pair until the key is rotated.
 - Revocation is local-only; no device management UI or multi-device identity registry.
 - Android Accessibility/IME permissions are powerful and must be explained carefully before enabling.
@@ -30,7 +30,7 @@ Source of truth: `../InputBridge_PRD_SRS_TRD.md` (§8).
 
 ## Threat model notes
 
-A local-network attacker can observe traffic metadata but cannot forge signed messages without the QR key. Captured messages cannot be replayed because of sequence tracking. Someone who photographs the QR can pair until the user rotates it with **New QR**. Losing Windows emergency availability is mitigated by default Laptop mode and fail-closed watchdogs, but secure desktop/UAC is out of scope.
+A local-network attacker can observe traffic metadata but cannot forge or read protocol v2 messages without the QR-derived key. Captured messages cannot be replayed because sequence/timestamp are AEAD-bound and tracked. Someone who photographs the QR can pair until the user rotates it with **New QR**. Losing Windows emergency availability is mitigated by default Laptop mode and fail-closed watchdogs, but secure desktop/UAC is out of scope.
 
 ## Implementation rules
 
@@ -38,4 +38,4 @@ A local-network attacker can observe traffic metadata but cannot forge signed me
 - On disconnect/session end, restore local routing and release held actions where supported.
 - Keep protocol versioned; reject unknown/malformed messages aggressively.
 - Keep diagnostics free of input content.
-- Move to an encrypted transport before any untrusted-network or production use.
+- Keep protocol v2 mandatory for input/control messages; do not reintroduce plaintext signed input envelopes.

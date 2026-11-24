@@ -1,8 +1,8 @@
 # Final build status
 
-Date: 2026-11-21
+Date: 2026-11-22
 
-## Status: QR-only functional MVP built in this workspace
+## Status: QR-only Touch Pointer MVP v0.3.1-fix built in this workspace
 
 The pairing flow has been changed from manual IP + 6-digit code to QR-only: Windows displays a QR and hosts the TCP server; Android scans it with ZXing embedded and connects as the client.
 
@@ -10,13 +10,33 @@ The pairing flow has been changed from manual IP + 6-digit code to QR-only: Wind
 
 | Artifact | Size (bytes) | SHA-256 |
 | --- | ---: | --- |
-| `release/InputBridge-Windows/InputBridge.exe` | 1,973,356 | `1601123C8FB0FAB824A6E037CC2BDB3CEF07AC9E008E5067425E7061A247AE8F` |
-| `release/InputBridge-Android/InputBridge-release.apk` | 5,419,666 | `65BB27BA3E233931482B3A4910C7E18D2EF42D830A3C81FDD9F4A6B3EF1CAFDD` |
-| `release/InputBridge-Android/InputBridge-debug.apk` | 6,784,792 | `015508AF7DC61BB6DE71BC724E2A8452B5FC278D20C8FDAC3A606D19E2CC715A` |
+| `release/InputBridge-Windows/InputBridge.exe` | 2,292,280 | `5D0F674FA97962B77B289C01F754CB26DD7AEAFC1638276BBA3BAA93C04D94D3` |
+| `release/InputBridge-Android/InputBridge-release.apk` | 5,482,651 | `123823D12A8F4058D9AD72E0D581A00E339A7AB5C6E13EA560D6FE644B6C7C33` |
+| `release/InputBridge-Android/InputBridge-debug.apk` | 6,886,519 | `0E72AE3B4D25EF5DFE67826561323D5C49CAEFBF45B3161B3E890615EE36213F` |
+| `release/InputBridge-Windows.zip` | 13,308,613 | `CA9E87E06B905D2387F494691136368987D2DFA76AA0077916D31D37D124A022` |
 
 Windows release folder contains 941 files including `InputBridge.exe` and `_internal/`; keep the folder intact.
 
 ## What was done
+
+### v0.3.1 fix pass
+
+- Fixed the reporting failure where a paired/connected phone still received no keyboard, click, or cursor movement: Windows now re-asserts the routing mode every 5 seconds, Android remembers mouse routing after an app/service restart, and the cursor is shown again when the Accessibility service connects after a mode message.
+- Added an Accessibility fallback for key events when the InputBridge IME object exists but is not the active keyboard; text entry still requires selecting the InputBridge IME.
+- Fixed Windows UI text/background blending by forcing the high-contrast `clam` ttk theme and by adding an explicit “Connected. Press SWITCH TO PHONE...” hint while routing is still local.
+- Fixed Android button text contrast on primary-colored buttons by adding theme-aware `on_primary` colors and replacing low-contrast text colors.
+- Updated the Windows desktop note so it no longer incorrectly says traffic is unencrypted.
+- Android version bumped to `versionCode=4`, `versionName=0.3.1-fix`.
+
+### v0.3.0 quality pass
+
+- Implemented the product-quality report: latest-value Windows pointer slot with 60 Hz default send rate (30/60/120 selectable), monotonic capture/send timestamps, stale-point and unchanged-point rejection, and ACK/latency diagnostics.
+- Android pointer core now uses Choreographer frame callbacks, WindowMetrics/WindowInsets mapping, a single shared coordinate transform for cursor and gestures, hotspot-aware overlay placement, edge clamping by hotspot, and a crosshair calibration screen with saved offsets.
+- Android button mapping is explicit: right = context menu/back/none, middle = recents/none, extra side button = Back; drag is intentionally not claimed.
+- Windows and Android UIs were redesigned around one primary action, setup checklist, Diagnostics, and Settings/Appearance personalization with theme, device name, scroll, pointer rate, button, and cursor controls.
+- Protocol v2 encrypts all post-pairing messages with AES-256-GCM. Key = SHA-256("inputbridge-aead-v2" + QR token). Pairing remains signed v1; `hello`/`error` remain unsigned. AAD binds version/type/session/sequence/timestamp/encoding. Wrong-key and tamper tests pass.
+- Android and Windows Diagnostics expose pointer counters and latency/queue telemetry without input content.
+- Android version bumped to `versionCode=3`, `versionName=0.3.0-quality`.
 
 ### Windows
 
@@ -75,7 +95,7 @@ Windows release folder contains 941 files including `InputBridge.exe` and `_inte
   $env:PYTHONPATH='src'
   python -m unittest discover -s tests -p 'test_*.py' -v
   ```
-  Result: `Ran 11 tests ... OK` (protocol, routing, QR format/size/limit, and Shift+CapsLock toggle tests).
+  Result: `Ran 13 tests ... OK` (AES-GCM v2 protocol roundtrip/tamper/wrong-key, legacy signed pairing, unsigned error, routing, QR format/size/limit, and Shift+CapsLock toggle tests).
 - Windows imports: `inputbridge.app`, `controller`, `input_capture`, `tray`, `net_server`, `qrcode` → `imports ok`.
 - 12-second localhost protocol integration test: paired successfully, received 3 periodic `capabilities_request` messages, stayed connected/paired, no heartbeat timeout. Heartbeat timeout raised from 6 to 15 seconds on both sides; Android reconnects after brief drops instead of stopping permanently.
 - Windows startup bugs previously fixed: deferred emergency-button binding and 64-bit `ctypes` argtypes for window/hook callbacks. Input-hook diagnostic ran 8 seconds with hook window/keyboard hook/mouse hook all alive and no errors; tray diagnostic ran 3 seconds with its window alive and no errors; injected real `Shift+CapsLock` events fired the toggle callback twice and `Ctrl+Alt+F12` fired the emergency callback once.
@@ -86,8 +106,9 @@ Windows release folder contains 941 files including `InputBridge.exe` and `_inte
 
 ## Known limitations
 
-- No TLS/encryption: HMAC-SHA256 gives integrity/authentication only. Trusted local network only.
-- A visual cursor overlay follows Windows mouse moves on the phone in Phone mode while the accessibility service is enabled; Android gestures are still tap/swipe based with status/navigation-bar-aware click mapping. No arbitrary Android system-key injection or secure-desktop/UAC control.
+- No TLS or production key management. Pairing is HMAC-signed and post-pairing traffic is AES-256-GCM encrypted; trusted local network still required.
+- Touch Pointer uses a hotspot-aware cursor overlay with calibration, but Android gestures are still tap/swipe based with WindowMetrics/Insets mapping. No native hover/drag/wheel semantics, arbitrary system-key injection, or secure-desktop/UAC control.
+- No Android device/ADB install or real-device latency smoke test was performed for v0.3.0 or v0.3.1-fix; manual hardware validation is still required.
 - No Android device/ADB install or camera-permission smoke test was performed here; `adb.exe` exists at `C:\Users\wwwsh\AppData\Local\Android\Sdk\platform-tools\adb.exe`.
 - Release certificate is self-signed for evaluation, not production distribution.
 

@@ -17,23 +17,37 @@ powershell -ExecutionPolicy Bypass -File .\run_app.ps1
 
 Run the packaged build: `D:\switcher\release\InputBridge-Windows\InputBridge.exe` (keep `_internal\` beside it).
 
-## What this MVP does
+## Application layout
 
-- Shows a QR code containing the laptop LAN IP, port `27123`, and a one-time 128-bit HMAC key.
-- **New QR** rotates the key and invalidates the current phone link; **Disconnect phone** restores local input.
-- Tk control panel with Laptop / Both / Keyboard-only / Mouse-only / Pause modes.
-- `Shift+CapsLock` toggles phone mode; in Phone mode, `CapsLock` alone also returns to Laptop; `Ctrl+Alt+F12` restores local input immediately.
-- Low-level keyboard/mouse hooks with routing-aware suppression, bounded queue, worker thread, watchdog, and fail-safe emergency return.
-- Signed JSON-lines TCP protocol (`protocol.py`) and authenticated server (`net_server.py`) on port `27123`.
-- Pure-stdlib QR encoder (`qrcode.py`, version 5-L) renders the QR directly on the Tk canvas.
-- System tray icon with Open / Phone / Laptop / Pause / Exit.
-- Log panel shows status only, never key content.
+- **Home** - one primary action (`Switch to Phone` / `Return to Laptop`), an unmistakable Laptop/Phone ownership diagram, secondary quick routing (Both / Keyboard / Mouse / Pause), an always-available Emergency return, and a compact connection summary. The QR pairing card is shown only while disconnected or unpaired.
+- **Settings** - General, Shortcuts, Devices, Input, Appearance and Advanced tabs. All values are persisted in `~/.inputbridge/config.json`.
+- **Diagnostics** - phone capabilities, honest "Not available" pointer metrics, and the status-only log with export/clear. Raw logs are no longer on the home screen.
+
+`New QR` rotates the pairing secret and invalidates the previous phone link. `Disconnect phone` restores local input. `Revoke pairing` in Devices stops the server and clears the stored pairing secret.
 
 ## Settings
 
-- Default phone mode.
-- Device identity and name in `~/.inputbridge/config.json`.
-- No manual phone IP or pairing code: the QR carries the connection details.
+| Section | Options |
+| --- | --- |
+| General | Start minimized, switch notifications, startup mode, named profile |
+| Shortcuts | Toggle and emergency display labels, live normalization, conflict validation, restore defaults |
+| Devices | Laptop name, phone name, auto-connect, re-pair, revoke |
+| Input | Default phone routing, pointer rate 30/60/120 Hz, scroll direction, scroll sensitivity, right/middle button actions |
+| Appearance | System/Light/Dark theme, accent preset, compact/comfortable density, Touch Pointer shape/size/fill/outline/trail/ripple with live preview |
+| Advanced | Diagnostics toggle, log export, heartbeat timeout, developer note |
+
+Theme and density preview immediately; changes are written with `Save settings`. Existing configuration keys (`host`, `port`, `device_id`, `device_name`, `paired_token`, `default_mode`, `auto_connect`, `toggle_shortcut_display`, `emergency_shortcut_display`, `notifications`) remain supported, along with the new personalization keys.
+
+The app passes `pointer_interval=1.0 / float(pointer_rate_hz)` to `BridgeController`. This requires the controller to accept the optional `pointer_interval` keyword; older controller revisions will fail at startup.
+
+## Behavior and limits
+
+- Defaults to Laptop mode; disconnect, emergency return and shutdown restore local input.
+- `Shift+CapsLock` toggles phone mode, `CapsLock` returns to Laptop while in Phone mode, and `Ctrl+Alt+F12` is the emergency return. Shortcut fields in Settings are labels; changing them does not rebind the OS hotkeys until the input engine supports it.
+- Touch Pointer is an accessibility-gesture compatibility layer: no native Android hover, drag, wheel, right-click or native mouse support. Some apps will not behave like desktop apps.
+- Pairing is HMAC-SHA256 signed; post-pairing input/control messages are AES-256-GCM encrypted. Use only on a trusted local network. Logs contain status only, never typed keys, text or tokens.
+- Button mappings, cursor appearance and scroll preferences are persisted locally and applied when the input engine and phone companion support them.
+- No secure-desktop/UAC coverage. See `..\docs\SECURITY.md` and `..\FINAL_BUILD_STATUS.md`.
 
 ## Build executable
 
@@ -64,10 +78,3 @@ The observe-only hook probe is still available:
 cd D:\switcher\windows
 python src\inputbridge\phase0_probe.py
 ```
-
-## Safety and limits
-
-- Defaults to Laptop mode; failures/disconnects restore local input.
-- HMAC-SHA256 provides integrity/authentication, not confidentiality. Use only on a trusted local network.
-- Text injection requires the InputBridge IME selected on Android; gestures require the Accessibility service enabled.
-- No secure-desktop/UAC coverage. See `..\docs\SECURITY.md` and `..\FINAL_BUILD_STATUS.md`.

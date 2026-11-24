@@ -59,6 +59,7 @@ class BridgeClient(
         thread = null
         paired = false
         lastCapsSignature = null
+        BridgeRuntime.setMouseRouting(false)
         onInput(JSONObject().put("kind", "release_all"))
         onState(BridgeRuntime.LinkState.STOPPED, "")
     }
@@ -133,6 +134,7 @@ class BridgeClient(
         } finally {
             paired = false
             lastCapsSignature = null
+            BridgeRuntime.setMouseRouting(false)
             socket = null
             writer = null
             onInput(JSONObject().put("kind", "release_all"))
@@ -155,7 +157,7 @@ class BridgeClient(
     }
 
     private fun processLine(line: String) {
-        val obj = Protocol.decodeLine(line)
+        val obj = Protocol.decodeLine(line, token)
         val type = obj.optString("type")
         val payload = obj.optJSONObject("payload") ?: JSONObject()
 
@@ -208,8 +210,11 @@ class BridgeClient(
             }
             "mode" -> {
                 val mouse = payload.optBoolean("mouse", false)
+                BridgeRuntime.setMouseRouting(mouse)
                 InputAccessibilityService.instance?.setCursorVisible(mouse)
-                onStatus("Routing mode: ${payload.optString("mode")}, mouse=$mouse")
+                if (!payload.optBoolean("silent", false)) {
+                    onStatus("Routing mode: ${payload.optString("mode")}, mouse=$mouse")
+                }
             }
             "release_all" -> onInput(JSONObject().put("kind", "release_all"))
             "disconnect" -> running.set(false)
@@ -226,7 +231,12 @@ class BridgeClient(
         }
         val isPointerMove = type == "input" && payload.optString("action") == "move"
         if (type != "ack" && type != "heartbeat" && !isPointerMove) {
-            send("ack", JSONObject().put("echoType", type), current)
+            val ack = JSONObject().put("echoType", type)
+            val inputWall = payload.optLong("tSendWallMs", 0L)
+            if (inputWall != 0L) ack.put("tInputWallMs", inputWall)
+            val inputMono = payload.optLong("tSendMonoNs", 0L)
+            if (inputMono != 0L) ack.put("tInputMonoNs", inputMono)
+            send("ack", ack, current)
         }
     }
 
