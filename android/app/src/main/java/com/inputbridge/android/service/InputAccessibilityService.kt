@@ -200,7 +200,8 @@ class InputAccessibilityService : AccessibilityService() {
     fun refreshCursor() {
         mainHandler.post {
             refreshMetrics()
-            rebuildCursor(SettingsStore.cursorStyle())
+            loadInputSettings()
+            rebuildCursor(currentStyle)
         }
     }
 
@@ -215,6 +216,12 @@ class InputAccessibilityService : AccessibilityService() {
             view.visibility = if (visible) View.VISIBLE else View.GONE
             if (visible) applyCursorPosition(latestX, latestY)
         }
+    }
+
+    private fun loadInputSettings() {
+        currentStyle = SettingsStore.cursorStyle()
+        calibrationOffsetX = SettingsStore.calibrationOffsetX
+        calibrationOffsetY = SettingsStore.calibrationOffsetY
     }
 
     private fun updateLatest(payload: JSONObject) {
