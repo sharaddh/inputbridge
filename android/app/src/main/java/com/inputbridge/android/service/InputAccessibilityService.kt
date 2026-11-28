@@ -48,17 +48,23 @@ class InputAccessibilityService : AccessibilityService() {
 
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
+            var x = 0f
+            var y = 0f
+            var receivedMono = 0L
+            var hasMove = false
             synchronized(this@InputAccessibilityService) {
                 frameScheduled = false
+                if (hasPendingMove) {
+                    x = pendingX
+                    y = pendingY
+                    receivedMono = pendingMoveReceivedMono
+                    hasPendingMove = false
+                    hasMove = true
+                }
             }
-            val move = synchronized(this@InputAccessibilityService) {
-                val value = pendingMove
-                pendingMove = null
-                value
-            }
-            if (move != null) {
-                applyCursorPosition(move.x, move.y)
-                val latency = (System.nanoTime() - move.receivedMono) / 1_000_000L
+            if (hasMove) {
+                applyCursorPosition(x, y)
+                val latency = (System.nanoTime() - receivedMono) / 1_000_000L
                 if (latency > 250L) metrics.stale() else metrics.frame(latency)
             }
         }
