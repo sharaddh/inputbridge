@@ -96,6 +96,7 @@ class InputAccessibilityService : AccessibilityService() {
         SettingsStore.init(applicationContext)
         mapper = CoordinateMapper(this)
         windowManager = getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+        loadInputSettings()
     }
 
     override fun onServiceConnected() {
@@ -107,6 +108,7 @@ class InputAccessibilityService : AccessibilityService() {
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
         }
         refreshMetrics()
+        loadInputSettings()
         addCursor()
         setCursorVisible(BridgeRuntime.mouseRouting())
     }
