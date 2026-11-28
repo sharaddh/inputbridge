@@ -66,8 +66,8 @@ class InputAccessibilityService : AccessibilityService() {
             }
             if (hasMove) {
                 applyCursorPosition(x, y)
-                val latencyMs = (System.nanoTime() - receivedMono) / 1_000_000L
-                if (latencyMs > 250L) metrics.stale() else metrics.frame(latencyMs)
+                val latency = (System.nanoTime() - receivedMono) / 1_000_000L
+                if (latency > 250L) metrics.stale() else metrics.frame(latency)
             }
         }
     }
