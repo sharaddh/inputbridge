@@ -255,7 +255,8 @@ class BridgeClient(
         send("capabilities", JSONObject().put("capabilities", caps), current)
     }
 
-    private fun allowEvent(): Boolean {
+    private fun allowEvent(payload: JSONObject): Boolean {
+        if (payload.optString("action") == "move") return true
         val now = System.currentTimeMillis()
         if (now - rateWindowStart >= 1000) {
             rateWindowStart = now
