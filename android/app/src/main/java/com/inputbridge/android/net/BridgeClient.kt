@@ -198,7 +198,7 @@ class BridgeClient(
         when (type) {
             "capabilities_request" -> sendCapabilities()
             "input" -> {
-                if (!allowEvent()) {
+                if (!allowEvent(payload)) {
                     val now = System.currentTimeMillis()
                     if (now - lastRateStatus >= 2000) {
                         lastRateStatus = now
