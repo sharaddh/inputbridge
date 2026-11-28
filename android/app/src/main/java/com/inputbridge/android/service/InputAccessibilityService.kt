@@ -216,19 +216,17 @@ class InputAccessibilityService : AccessibilityService() {
     private fun updateLatest(payload: JSONObject) {
         val x = payload.optDouble("x", latestX.toDouble()).toFloat().coerceIn(0f, 1f)
         val y = payload.optDouble("y", latestY.toDouble()).toFloat().coerceIn(0f, 1f)
-        synchronized(this) {
-            latestX = x
-            latestY = y
-        }
-        mainHandler.post { applyCursorPosition(x, y) }
+        latestX = x
+        latestY = y
+        if (cursorVisible) mainHandler.post { applyCursorPosition(x, y) }
     }
 
-    private fun latestPoint(): Pair<Float, Float> = synchronized(this) { latestX to latestY }
+    private fun latestPoint(): Pair<Float, Float> = latestX to latestY
 
     private fun scheduleFrame() {
         var post = false
         synchronized(this) {
-            if (!frameScheduled) {
+            if (!frameScheduled && cursorVisible) {
                 frameScheduled = true
                 post = true
             }
