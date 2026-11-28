@@ -26,18 +26,18 @@ import kotlin.math.abs
 import kotlin.math.min
 
 class InputAccessibilityService : AccessibilityService() {
-    private data class Move(val x: Float, val y: Float, val receivedMono: Long)
-
     private var pendingButton = ""
     private var cursorView: View? = null
     private var cursorParams: WindowManager.LayoutParams? = null
     private var cursorVisible = false
     private var windowManager: WindowManager? = null
     private var currentStyle = SettingsStore.CursorStyle("classic", 28, Color.WHITE, Color.rgb(25, 28, 32), 2f, 0f, 0f)
-    private var currentStyleKey = ""
-    private var latestX = 0.5f
-    private var latestY = 0.5f
-    private var pendingMove: Move? = null
+    @Volatile private var latestX = 0.5f
+    @Volatile private var latestY = 0.5f
+    private var pendingX = 0.5f
+    private var pendingY = 0.5f
+    private var pendingMoveReceivedMono = 0L
+    private var hasPendingMove = false
     private var frameScheduled = false
     private var pendingWheel = 0
     private var wheelScheduled = false
