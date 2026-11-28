@@ -139,8 +139,11 @@ class InputAccessibilityService : AccessibilityService() {
                 synchronized(this) {
                     latestX = x
                     latestY = y
-                    if (pendingMove != null) metrics.coalesced()
-                    pendingMove = Move(x, y, System.nanoTime())
+                    if (hasPendingMove) metrics.coalesced()
+                    pendingX = x
+                    pendingY = y
+                    pendingMoveReceivedMono = System.nanoTime()
+                    hasPendingMove = true
                     metrics.received()
                     metrics.queueDepth(if (frameScheduled) 1 else 0)
                 }
