@@ -302,17 +302,6 @@ class InputAccessibilityService : AccessibilityService() {
     private fun cursorSizePx(style: SettingsStore.CursorStyle): Int =
         (style.sizeDp * resources.displayMetrics.density).toInt().coerceAtLeast(12)
 
-    private fun styleKey(style: SettingsStore.CursorStyle): String =
-        listOf(
-            style.shape,
-            style.sizeDp,
-            style.fillColor,
-            style.outlineColor,
-            style.outlineWidthDp,
-            style.hotspotX,
-            style.hotspotY,
-        ).joinToString("|")
-
     private fun addCursor() {
         rebuildCursor(SettingsStore.cursorStyle())
     }
@@ -321,7 +310,6 @@ class InputAccessibilityService : AccessibilityService() {
         removeCursor()
         refreshMetrics()
         currentStyle = style
-        currentStyleKey = styleKey(style)
         val manager = windowManager ?: return
         val density = resources.displayMetrics.density
         val width = cursorSizePx(style)
