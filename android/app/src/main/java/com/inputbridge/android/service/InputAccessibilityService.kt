@@ -410,14 +410,10 @@ class InputAccessibilityService : AccessibilityService() {
 
     private fun applyCursorPosition(xNorm: Float, yNorm: Float) {
         if (!cursorVisible) return
-        val style = SettingsStore.cursorStyle()
-        if (styleKey(style) != currentStyleKey) {
-            rebuildCursor(style)
-            return
-        }
         val view = cursorView ?: return
         val params = cursorParams ?: return
         val manager = windowManager ?: return
+        val style = currentStyle
         val point = physicalPoint(xNorm, yNorm)
         val hotspotX = (style.hotspotX * params.width).toInt()
         val hotspotY = (style.hotspotY * params.height).toInt()
