@@ -289,7 +289,7 @@ class InputAccessibilityService : AccessibilityService() {
     }
 
     private fun targetPoint(xNorm: Float, yNorm: Float): Pair<Int, Int> =
-        mapper.point(xNorm, yNorm, SettingsStore.calibrationOffsetX, SettingsStore.calibrationOffsetY)
+        mapper.point(xNorm, yNorm, calibrationOffsetX, calibrationOffsetY)
 
     private fun physicalPoint(xNorm: Float, yNorm: Float): Pair<Int, Int> =
         targetPoint(xNorm, yNorm)
