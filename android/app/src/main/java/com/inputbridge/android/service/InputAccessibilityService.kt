@@ -34,6 +34,8 @@ class InputAccessibilityService : AccessibilityService() {
     private var currentStyle = SettingsStore.CursorStyle("classic", 28, Color.WHITE, Color.rgb(25, 28, 32), 2f, 0f, 0f)
     @Volatile private var latestX = 0.5f
     @Volatile private var latestY = 0.5f
+    @Volatile private var calibrationOffsetX = 0
+    @Volatile private var calibrationOffsetY = 0
     private var pendingX = 0.5f
     private var pendingY = 0.5f
     private var pendingMoveReceivedMono = 0L
